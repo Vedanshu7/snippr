@@ -34,25 +34,45 @@ func main() {
 	}
 
 	ja := jwtauth.New("HS256", []byte(cfg.JWTSecret), nil)
+	hub := api.NewHub()
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(api.Logger)
 
-	// API routes.
+	// Public API routes.
 	r.Post("/api/register", api.RegisterHandler(database))
 	r.Post("/api/login", api.LoginHandler(database, ja))
 	r.Post("/api/logout", api.LogoutHandler())
 	r.Get("/api/s/{slug}", api.PublicSnippetHandler(database))
+	r.Get("/api/workspaces/public", api.ListPublicWorkspacesHandler(database)) // no auth needed
 
 	r.Group(func(r chi.Router) {
 		r.Use(api.Authenticator(ja))
+
 		r.Get("/api/me", api.MeHandler())
-		r.Post("/api/snippets", api.CreateSnippetHandler(database))
+
+		// Snippets.
+		r.Post("/api/snippets", api.CreateSnippetHandler(database, hub))
 		r.Get("/api/snippets", api.ListSnippetsHandler(database))
 		r.Get("/api/snippets/{id}", api.GetSnippetHandler(database))
-		r.Put("/api/snippets/{id}", api.UpdateSnippetHandler(database))
-		r.Delete("/api/snippets/{id}", api.DeleteSnippetHandler(database))
+		r.Put("/api/snippets/{id}", api.UpdateSnippetHandler(database, hub))
+		r.Delete("/api/snippets/{id}", api.DeleteSnippetHandler(database, hub))
+
+		// Workspaces — literal paths before parameterised {id} routes.
+		r.Post("/api/workspaces", api.CreateWorkspaceHandler(database))
+		r.Get("/api/workspaces", api.ListWorkspacesHandler(database))
+		r.Post("/api/workspaces/join", api.JoinWorkspaceHandler(database))
+		r.Get("/api/workspaces/{id}", api.GetWorkspaceHandler(database))
+		r.Put("/api/workspaces/{id}", api.UpdateWorkspaceHandler(database))
+		r.Delete("/api/workspaces/{id}", api.DeleteWorkspaceHandler(database))
+		r.Delete("/api/workspaces/{id}/leave", api.LeaveWorkspaceHandler(database))
+		r.Get("/api/workspaces/{id}/members", api.ListWorkspaceMembersHandler(database))
+		r.Delete("/api/workspaces/{id}/members/{userID}", api.RemoveMemberHandler(database))
+		r.Post("/api/workspaces/{id}/rotate-invite", api.RotateInviteCodeHandler(database))
+
+		// Live board (SSE).
+		r.Get("/api/workspaces/{id}/board", api.BoardSSEHandler(database, hub))
 	})
 
 	// SPA static files — all non-API requests fall through to index.html.
@@ -71,7 +91,6 @@ func spaHandler(fs http.FileSystem) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f, err := fs.Open(r.URL.Path)
 		if err != nil {
-			// File not found — serve index.html for React Router to handle.
 			r2 := *r
 			r2.URL.Path = "/"
 			fileServer.ServeHTTP(w, &r2)
