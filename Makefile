@@ -1,4 +1,4 @@
-.PHONY: run build build-cli build-ui test lint docker-build docker-up docker-down
+.PHONY: run build build-cli build-ui install test lint docker-build docker-up docker-down
 
 run:
 	go run ./cmd/server
@@ -6,7 +6,7 @@ run:
 build: build-ui
 	mkdir -p bin
 	go build -o bin/snippr-server ./cmd/server
-	go build -o bin/snippr ./cmd/cli
+	go build -o bin/snippr ./cmd/snippr
 
 build-ui:
 	cd web && npm run build
@@ -15,7 +15,10 @@ build-ui:
 
 build-cli:
 	mkdir -p bin
-	go build -o bin/snippr ./cmd/cli
+	go build -o bin/snippr ./cmd/snippr
+
+install:
+	go install ./cmd/snippr
 
 test:
 	go test ./...
