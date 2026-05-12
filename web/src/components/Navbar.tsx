@@ -1,12 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { auth } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
+import { useThemeStore } from '@/store/themeStore'
 import { Button } from '@/components/ui/button'
-import { Code2, LogOut, Plus } from 'lucide-react'
+import { Code2, LogOut, Moon, Plus, Sun } from 'lucide-react'
 
 export default function Navbar() {
   const navigate = useNavigate()
   const { logout } = useAuthStore()
+  const { theme, toggle } = useThemeStore()
 
   async function handleLogout() {
     try { await auth.logout() } catch { /* ignore */ }
@@ -24,6 +26,9 @@ export default function Navbar() {
         <div className="flex items-center gap-2">
           <Button variant="default" size="sm" asChild>
             <Link to="/snippets/new"><Plus className="h-4 w-4 mr-1" />New</Link>
+          </Button>
+          <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
+            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />

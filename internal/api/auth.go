@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,6 +14,26 @@ import (
 
 	dbpkg "github.com/vedanshu/snippr/internal/db"
 )
+
+var (
+	reUpper   = regexp.MustCompile(`[A-Z]`)
+	reDigit   = regexp.MustCompile(`[0-9]`)
+	reSpecial = regexp.MustCompile(`[^A-Za-z0-9]`)
+)
+
+func validatePassword(p string) string {
+	switch {
+	case len(p) < minPasswordLen:
+		return "password must be at least 8 characters"
+	case !reUpper.MatchString(p):
+		return "password must contain at least one uppercase letter"
+	case !reDigit.MatchString(p):
+		return "password must contain at least one number"
+	case !reSpecial.MatchString(p):
+		return "password must contain at least one special character"
+	}
+	return ""
+}
 
 const minPasswordLen = 8
 
@@ -39,8 +60,8 @@ func RegisterHandler(db *sql.DB) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "invalid email")
 			return
 		}
-		if len(req.Password) < minPasswordLen {
-			writeError(w, http.StatusBadRequest, "password must be at least 8 characters")
+		if msg := validatePassword(req.Password); msg != "" {
+			writeError(w, http.StatusBadRequest, msg)
 			return
 		}
 
