@@ -2,6 +2,8 @@
 
 A self-hosted snippet manager for developers. Save, search, and share code snippets — with a web UI, REST API, and CLI tool.
 
+**Live demo:** [snippr-vp2w.onrender.com](https://snippr-vp2w.onrender.com)
+
 ## Features
 
 - **Auth** — JWT-based register/login
