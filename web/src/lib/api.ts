@@ -1,18 +1,16 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: '/api' })
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
+const api = axios.create({
+  baseURL: '/api',
+  withCredentials: true, // send session cookie on every request
 })
 
 api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('token')
+      // Clear persisted auth state and redirect to login.
+      localStorage.removeItem('snippr-auth')
       window.location.href = '/login'
     }
     return Promise.reject(err)
@@ -32,6 +30,11 @@ export interface Snippet {
   updated_at: string
 }
 
+export interface User {
+  id: number
+  email: string
+}
+
 export interface CreateSnippetReq {
   title: string
   content: string
@@ -44,7 +47,9 @@ export const auth = {
   register: (email: string, password: string) =>
     api.post('/register', { email, password }),
   login: (email: string, password: string) =>
-    api.post<{ token: string }>('/login', { email, password }),
+    api.post<{ token: string; user: User }>('/login', { email, password }),
+  logout: () => api.post('/logout'),
+  me: () => api.get<User>('/me'),
 }
 
 export const snippets = {

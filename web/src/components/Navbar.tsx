@@ -1,13 +1,16 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { clearToken } from '@/lib/auth'
+import { auth } from '@/lib/api'
+import { useAuthStore } from '@/store/authStore'
 import { Button } from '@/components/ui/button'
 import { Code2, LogOut, Plus } from 'lucide-react'
 
 export default function Navbar() {
   const navigate = useNavigate()
+  const { logout } = useAuthStore()
 
-  function handleLogout() {
-    clearToken()
+  async function handleLogout() {
+    try { await auth.logout() } catch { /* ignore */ }
+    logout()
     navigate('/login')
   }
 
@@ -20,10 +23,7 @@ export default function Navbar() {
         </Link>
         <div className="flex items-center gap-2">
           <Button variant="default" size="sm" asChild>
-            <Link to="/snippets/new">
-              <Plus className="h-4 w-4 mr-1" />
-              New
-            </Link>
+            <Link to="/snippets/new"><Plus className="h-4 w-4 mr-1" />New</Link>
           </Button>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />

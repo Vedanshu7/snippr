@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -104,6 +105,46 @@ func LoginHandler(db *sql.DB, ja *jwtauth.JWTAuth) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]string{"token": tokenStr})
+		// Set httpOnly cookie for web clients.
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session",
+			Value:    tokenStr,
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			Secure:   os.Getenv("APP_ENV") == "production",
+			Path:     "/",
+			MaxAge:   86400,
+		})
+
+		// Also return token in body for CLI compatibility.
+		writeJSON(w, http.StatusOK, map[string]any{
+			"token": tokenStr,
+			"user":  map[string]any{"id": user.ID, "email": user.Email},
+		})
+	}
+}
+
+func LogoutHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session",
+			Value:   "",
+			Path:    "/",
+			MaxAge:  -1,
+			HttpOnly: true,
+		})
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func MeHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, claims, _ := jwtauth.FromContext(r.Context())
+		id, _ := claims["user_id"].(float64)
+		email, _ := claims["email"].(string)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"id":    int64(id),
+			"email": email,
+		})
 	}
 }

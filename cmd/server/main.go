@@ -42,10 +42,12 @@ func main() {
 	// API routes.
 	r.Post("/api/register", api.RegisterHandler(database))
 	r.Post("/api/login", api.LoginHandler(database, ja))
+	r.Post("/api/logout", api.LogoutHandler())
 	r.Get("/api/s/{slug}", api.PublicSnippetHandler(database))
 
 	r.Group(func(r chi.Router) {
 		r.Use(api.Authenticator(ja))
+		r.Get("/api/me", api.MeHandler())
 		r.Post("/api/snippets", api.CreateSnippetHandler(database))
 		r.Get("/api/snippets", api.ListSnippetsHandler(database))
 		r.Get("/api/snippets/{id}", api.GetSnippetHandler(database))

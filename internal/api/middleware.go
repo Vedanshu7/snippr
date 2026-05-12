@@ -13,9 +13,21 @@ type contextKey string
 
 const userIDKey contextKey = "userID"
 
+// Authenticator verifies JWTs from either the Authorization header or the
+// session cookie, so both the web UI (cookie) and CLI (Bearer token) work.
 func Authenticator(ja *jwtauth.JWTAuth) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return jwtauth.Verifier(ja)(jwtauth.Authenticator(ja)(next))
+		chain := jwtauth.Verifier(ja)(jwtauth.Authenticator(ja)(next))
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Inject session cookie into Authorization header before the verifier runs.
+			if r.Header.Get("Authorization") == "" {
+				if c, err := r.Cookie("session"); err == nil {
+					r = r.Clone(r.Context())
+					r.Header.Set("Authorization", "Bearer "+c.Value)
+				}
+			}
+			chain.ServeHTTP(w, r)
+		})
 	}
 }
 
