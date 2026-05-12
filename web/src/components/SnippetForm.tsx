@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { snippetSchema, type SnippetInput } from '@/lib/schemas'
 import type { Snippet } from '@/lib/api'
-import { snippets as api } from '@/lib/api'
+import { snippets as api, workspaces as workspacesApi } from '@/lib/api'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,6 +27,12 @@ interface Props {
 export default function SnippetForm({ initial }: Props) {
   const navigate = useNavigate()
   const [tagInput, setTagInput] = useState('')
+  const activeWorkspace = useWorkspaceStore((s) => s.activeWorkspace)
+
+  const { data: workspaceList } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: () => workspacesApi.list().then((r) => r.data),
+  })
 
   const {
     register,
@@ -41,12 +49,14 @@ export default function SnippetForm({ initial }: Props) {
       language: initial?.language ?? 'text',
       is_public: initial?.is_public ?? false,
       tags: initial?.tags ?? [],
+      workspace_id: initial?.workspace_id ?? activeWorkspace?.id ?? undefined,
     },
   })
 
   const tags = watch('tags')
   const language = watch('language')
   const isPublic = watch('is_public')
+  const workspaceID = watch('workspace_id')
 
   function addTag(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' || e.key === ',') {
@@ -121,6 +131,24 @@ export default function SnippetForm({ initial }: Props) {
           onKeyDown={addTag}
         />
       </div>
+
+      {workspaceList && workspaceList.length > 0 && (
+        <div className="space-y-2">
+          <Label>Scope</Label>
+          <Select
+            value={workspaceID ? String(workspaceID) : 'personal'}
+            onValueChange={(v) => setValue('workspace_id', v === 'personal' ? undefined : Number(v))}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="personal">Personal (only you)</SelectItem>
+              {workspaceList.map((w) => (
+                <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <input

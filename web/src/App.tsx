@@ -10,6 +10,9 @@ import NewSnippetPage from '@/pages/NewSnippetPage'
 import SnippetDetailPage from '@/pages/SnippetDetailPage'
 import EditSnippetPage from '@/pages/EditSnippetPage'
 import PublicSnippetPage from '@/pages/PublicSnippetPage'
+import WorkspacesPage from '@/pages/WorkspacesPage'
+import WorkspacePage from '@/pages/WorkspacePage'
+import WorkspaceSettingsPage from '@/pages/WorkspaceSettingsPage'
 
 const qc = new QueryClient()
 
@@ -43,6 +46,9 @@ export default function App() {
           <Route path="/snippets/new" element={<RequireAuth><NewSnippetPage /></RequireAuth>} />
           <Route path="/snippets/:id" element={<RequireAuth><SnippetDetailPage /></RequireAuth>} />
           <Route path="/snippets/:id/edit" element={<RequireAuth><EditSnippetPage /></RequireAuth>} />
+          <Route path="/workspaces" element={<RequireAuth><WorkspacesPage /></RequireAuth>} />
+          <Route path="/workspaces/:id" element={<RequireAuth><WorkspacePage /></RequireAuth>} />
+          <Route path="/workspaces/:id/settings" element={<RequireAuth><WorkspaceSettingsPage /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>

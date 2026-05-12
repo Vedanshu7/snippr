@@ -21,8 +21,20 @@ export const snippetSchema = z.object({
   language: z.string(),
   is_public: z.boolean(),
   tags: z.array(z.string()),
+  workspace_id: z.number().optional(),
+})
+
+export const workspaceSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  is_public: z.boolean(),
+})
+
+export const joinWorkspaceSchema = z.object({
+  invite_code: z.string().length(8, 'Invite code must be 8 characters'),
 })
 
 export type LoginInput = z.infer<typeof loginSchema>
 export type RegisterInput = z.infer<typeof registerSchema>
 export type SnippetInput = z.infer<typeof snippetSchema>
+export type WorkspaceInput = z.infer<typeof workspaceSchema>
+export type JoinWorkspaceInput = z.infer<typeof joinWorkspaceSchema>
