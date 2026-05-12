@@ -1,0 +1,8 @@
+.env
+bin/
+data/
+*.db
+snippr-project-plan.md
+web/node_modules/
+web/dist/
+cmd/server/ui/

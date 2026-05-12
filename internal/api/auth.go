@@ -1,0 +1,109 @@
+package api
+
+import (
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/go-chi/jwtauth/v5"
+	"golang.org/x/crypto/bcrypt"
+
+	dbpkg "github.com/vedanshu/snippr/internal/db"
+)
+
+const minPasswordLen = 8
+
+type registerReq struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type loginReq struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func RegisterHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req registerReq
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+		if req.Email == "" || !strings.Contains(req.Email, "@") {
+			writeError(w, http.StatusBadRequest, "invalid email")
+			return
+		}
+		if len(req.Password) < minPasswordLen {
+			writeError(w, http.StatusBadRequest, "password must be at least 8 characters")
+			return
+		}
+
+		existing, err := dbpkg.GetUserByEmail(db, req.Email)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server error")
+			return
+		}
+		if existing != nil {
+			writeError(w, http.StatusConflict, "email already registered")
+			return
+		}
+
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server error")
+			return
+		}
+
+		id, err := dbpkg.CreateUser(db, req.Email, string(hash))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server error")
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, map[string]any{"id": id, "email": req.Email})
+	}
+}
+
+func LoginHandler(db *sql.DB, ja *jwtauth.JWTAuth) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req loginReq
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+
+		req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+		user, err := dbpkg.GetUserByEmail(db, req.Email)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server error")
+			return
+		}
+		if user == nil {
+			writeError(w, http.StatusUnauthorized, "invalid credentials")
+			return
+		}
+
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+			writeError(w, http.StatusUnauthorized, "invalid credentials")
+			return
+		}
+
+		claims := map[string]any{
+			"user_id": user.ID,
+			"email":   user.Email,
+			"exp":     time.Now().Add(24 * time.Hour).Unix(),
+		}
+		_, tokenStr, err := ja.Encode(claims)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server error")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]string{"token": tokenStr})
+	}
+}

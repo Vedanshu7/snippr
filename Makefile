@@ -1,0 +1,33 @@
+.PHONY: run build build-cli build-ui test lint docker-build docker-up docker-down
+
+run:
+	go run ./cmd/server
+
+build: build-ui
+	mkdir -p bin
+	go build -o bin/snippr-server ./cmd/server
+	go build -o bin/snippr ./cmd/cli
+
+build-ui:
+	cd web && npm run build
+	rm -rf cmd/server/ui
+	cp -r web/dist cmd/server/ui
+
+build-cli:
+	mkdir -p bin
+	go build -o bin/snippr ./cmd/cli
+
+test:
+	go test ./...
+
+lint:
+	go vet ./...
+
+docker-build:
+	docker build -t snippr .
+
+docker-up:
+	docker compose up -d
+
+docker-down:
+	docker compose down
