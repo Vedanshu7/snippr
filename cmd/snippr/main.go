@@ -2,11 +2,15 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -26,6 +30,7 @@ func main() {
 		saveCmd(),
 		getCmd(),
 		deleteCmd(),
+		boardCmd(),
 		configCmd(),
 	)
 
@@ -224,6 +229,75 @@ func deleteCmd() *cobra.Command {
 			}
 			cli.Success(fmt.Sprintf("deleted snippet #%d", id))
 			return nil
+		},
+	}
+}
+
+func boardCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "board <workspace-id>",
+		Short: "Watch a workspace live board (streaming)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid workspace id: %s", args[0])
+			}
+
+			c, _ := loadClient(true)
+
+			// Print header and let Ctrl+C close the connection cleanly.
+			fmt.Printf("Watching workspace #%d live board — Ctrl+C to quit\n\n", id)
+
+			done := make(chan struct{})
+			sig := make(chan os.Signal, 1)
+			signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+			go func() {
+				<-sig
+				fmt.Println("\nDisconnected.")
+				close(done)
+			}()
+
+			errCh := make(chan error, 1)
+			go func() {
+				errCh <- c.WatchBoard(id, func(ev cli.BoardEvent) {
+					ts := time.Now().Format("15:04:05")
+					switch ev.Type {
+					case "snippet_added":
+						var s cli.BoardSnippet
+						if json.Unmarshal(ev.Payload, &s) == nil {
+							fmt.Printf("[%s] + %q (%s)\n", ts, s.Title, s.Language)
+						}
+					case "snippet_updated":
+						var s cli.BoardSnippet
+						if json.Unmarshal(ev.Payload, &s) == nil {
+							fmt.Printf("[%s] ~ %q (%s) updated\n", ts, s.Title, s.Language)
+						}
+					case "snippet_deleted":
+						var p cli.BoardDeletedPayload
+						if json.Unmarshal(ev.Payload, &p) == nil {
+							fmt.Printf("[%s] - snippet #%d deleted\n", ts, p.ID)
+						}
+					case "editing_start":
+						var p cli.BoardEditingPayload
+						if json.Unmarshal(ev.Payload, &p) == nil {
+							fmt.Printf("[%s] ✏  %s is editing snippet #%d\n", ts, p.Email, p.SnippetID)
+						}
+					case "editing_stop":
+						var p cli.BoardEditingPayload
+						if json.Unmarshal(ev.Payload, &p) == nil {
+							fmt.Printf("[%s]    %s stopped editing snippet #%d\n", ts, p.Email, p.SnippetID)
+						}
+					}
+				})
+			}()
+
+			select {
+			case <-done:
+				return nil
+			case err := <-errCh:
+				return err
+			}
 		},
 	}
 }

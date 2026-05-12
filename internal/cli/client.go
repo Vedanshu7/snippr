@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -156,4 +158,73 @@ func (c *Client) DeleteSnippet(id int64) error {
 		return fmt.Errorf("server: %s", http.StatusText(resp.StatusCode))
 	}
 	return nil
+}
+
+// BoardEvent is the top-level SSE payload envelope.
+type BoardEvent struct {
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// BoardSnippet carries snippet fields in snippet_added / snippet_updated events.
+type BoardSnippet struct {
+	ID       int64    `json:"id"`
+	Title    string   `json:"title"`
+	Language string   `json:"language"`
+	Tags     []string `json:"tags"`
+}
+
+// BoardDeletedPayload carries the ID in a snippet_deleted event.
+type BoardDeletedPayload struct {
+	ID int64 `json:"id"`
+}
+
+// BoardEditingPayload carries presence info for editing_start / editing_stop events.
+type BoardEditingPayload struct {
+	SnippetID int64  `json:"snippet_id"`
+	Email     string `json:"email"`
+}
+
+// WatchBoard connects to the SSE board for workspaceID and calls handler for each event.
+// It blocks until the context is cancelled (caller sends os.Interrupt) or the connection drops.
+func (c *Client) WatchBoard(workspaceID int64, handler func(BoardEvent)) error {
+	req, err := http.NewRequest("GET", c.base+"/api/workspaces/"+strconv.FormatInt(workspaceID, 10)+"/board", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Cache-Control", "no-cache")
+
+	// No timeout — SSE connection is long-lived.
+	sseClient := &http.Client{}
+	resp, err := sseClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("connect: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("server: %s", strings.TrimSpace(string(body)))
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	var eventType, dataLine string
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, "event: "):
+			eventType = strings.TrimPrefix(line, "event: ")
+		case strings.HasPrefix(line, "data: "):
+			dataLine = strings.TrimPrefix(line, "data: ")
+		case line == "" && eventType != "" && dataLine != "":
+			var ev BoardEvent
+			if err := json.Unmarshal([]byte(dataLine), &ev); err == nil {
+				handler(ev)
+			}
+			eventType, dataLine = "", ""
+		}
+	}
+	return scanner.Err()
 }

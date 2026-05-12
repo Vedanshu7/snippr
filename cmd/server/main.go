@@ -71,8 +71,9 @@ func main() {
 		r.Delete("/api/workspaces/{id}/members/{userID}", api.RemoveMemberHandler(database))
 		r.Post("/api/workspaces/{id}/rotate-invite", api.RotateInviteCodeHandler(database))
 
-		// Live board (SSE).
+		// Live board (SSE) + editing presence.
 		r.Get("/api/workspaces/{id}/board", api.BoardSSEHandler(database, hub))
+		r.Post("/api/workspaces/{id}/editing", api.AnnounceEditingHandler(database, hub))
 	})
 
 	// SPA static files — all non-API requests fall through to index.html.

@@ -11,7 +11,7 @@ A self-hosted snippet manager for developers. Save, search, and share code snipp
 - **Full-text search** — Postgres `tsvector` powered search across title and content
 - **Public sharing** — generate a shareable slug link for any snippet (`/s/:slug`)
 - **Workspaces** — shared spaces with admin/member roles; public or invite-only
-- **Live board** — real-time snippet feed per workspace via Server-Sent Events
+- **Live board** — real-time collaborative editing board per workspace; edits autosave and sync to all members instantly via SSE
 - **Web UI** — React + shadcn/ui with dark/light theme and syntax highlighting
 - **CLI tool** — install once, run as `snippr` from anywhere
 - **Docker** — single `docker compose up` to run everything
@@ -80,6 +80,9 @@ snippr search "postgres"
 
 # Get and copy to clipboard
 snippr get 1 --copy
+
+# Watch a workspace live board (streaming)
+snippr board <workspace-id>
 ```
 
 ## Workspaces

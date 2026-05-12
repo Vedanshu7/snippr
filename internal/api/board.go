@@ -82,6 +82,74 @@ func MakeDeleteEvent(id int64) BoardEvent {
 	}
 }
 
+// EditingPayload is the SSE payload for editing_start / editing_stop events.
+type EditingPayload struct {
+	SnippetID int64  `json:"snippet_id"`
+	UserID    int64  `json:"user_id"`
+	Email     string `json:"email"`
+	Editing   bool   `json:"editing"`
+}
+
+type announceEditingReq struct {
+	SnippetID int64 `json:"snippet_id"`
+	Editing   bool  `json:"editing"`
+}
+
+// AnnounceEditingHandler broadcasts editing presence events to workspace board watchers.
+func AnnounceEditingHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		workspaceID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid workspace id")
+			return
+		}
+
+		userID := GetUserID(r)
+		ok, err := dbpkg.IsMember(db, workspaceID, userID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server error")
+			return
+		}
+		if !ok {
+			writeError(w, http.StatusForbidden, "not a workspace member")
+			return
+		}
+
+		var req announceEditingReq
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.SnippetID <= 0 {
+			writeError(w, http.StatusBadRequest, "snippet_id required")
+			return
+		}
+
+		email, err := dbpkg.GetUserEmail(db, userID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server error")
+			return
+		}
+
+		eventType := "editing_stop"
+		if req.Editing {
+			eventType = "editing_start"
+		}
+		event, err := MakeBoardEvent(eventType, EditingPayload{
+			SnippetID: req.SnippetID,
+			UserID:    userID,
+			Email:     email,
+			Editing:   req.Editing,
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "server error")
+			return
+		}
+		hub.Broadcast(workspaceID, event)
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 func BoardSSEHandler(db *sql.DB, hub *Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		workspaceID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)

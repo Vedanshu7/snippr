@@ -101,4 +101,6 @@ export const workspaces = {
     api.delete(`/workspaces/${workspaceId}/members/${userId}`),
   rotateInvite: (id: number) =>
     api.post<{ invite_code: string }>(`/workspaces/${id}/rotate-invite`),
+  announceEditing: (workspaceId: number, snippetId: number, editing: boolean) =>
+    api.post(`/workspaces/${workspaceId}/editing`, { snippet_id: snippetId, editing }),
 }

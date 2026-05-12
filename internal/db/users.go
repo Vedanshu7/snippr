@@ -19,6 +19,19 @@ func CreateUser(db *sql.DB, email, passwordHash string) (int64, error) {
 	return id, nil
 }
 
+// GetUserEmail returns the email for a user ID, or "" if not found.
+func GetUserEmail(db *sql.DB, userID int64) (string, error) {
+	var email string
+	err := db.QueryRow(`SELECT email FROM users WHERE id = $1`, userID).Scan(&email)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("get user email: %w", err)
+	}
+	return email, nil
+}
+
 func GetUserByEmail(db *sql.DB, email string) (*models.User, error) {
 	u := &models.User{}
 	err := db.QueryRow(
